@@ -84,4 +84,7 @@ EXPOSE 5901
 EXPOSE 6080
 EXPOSE 8000
 
-CMD ["/usr/local/bin/start-all.sh"]
+CMD ["/usr/local/bin/wstunnel server \
+  -r "$WSTUNNEL_SECRET" \
+  ws://0.0.0.0:8000 \
+  >/var/log/wstunnel-server.log 2>&1 &"]
