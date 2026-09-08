@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 ubuntu:22.04
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -29,6 +29,8 @@ RUN apt update -y && apt install --no-install-recommends -y \
     x11-xserver-utils \
     x11-apps \
     software-properties-common \
+    gnupg \
+    gpg-agent \
     && rm -rf /var/lib/apt/lists/*
 
 # =========================================================
