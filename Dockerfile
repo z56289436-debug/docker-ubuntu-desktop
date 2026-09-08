@@ -53,8 +53,35 @@ RUN curl -fL \
     && install -m 0755 /tmp/wstunnel /usr/local/bin/wstunnel \
     && rm -f /tmp/wstunnel.tar.gz /tmp/wstunnel
 
+RUN cat >/usr/local/bin/start-all.sh <<'EOF'
+#!/bin/bash
+set -e
+
+vncserver -localhost no -SecurityTypes None \
+  -geometry 1024x768 \
+  --I-KNOW-THIS-IS-INSECURE
+
+openssl req -new \
+  -subj "/C=JP" \
+  -x509 -days 365 -nodes \
+  -out /root/self.pem \
+  -keyout /root/self.pem
+
+websockify -D \
+  --web=/usr/share/novnc/ \
+  --cert=/root/self.pem \
+  6080 localhost:5901
+
+/usr/local/bin/wstunnel server ws://0.0.0.0:8000 \
+  >/var/log/wstunnel-server.log 2>&1 &
+
+exec tail -f /dev/null
+EOF
+
+RUN chmod +x /usr/local/bin/start-all.sh
+
 EXPOSE 5901
 EXPOSE 6080
 EXPOSE 8000
 
-CMD ["/bin/bash", "-c", "vncserver -localhost no -SecurityTypes None -geometry 1024x768 --I-KNOW-THIS-IS-INSECURE && openssl req -new -subj '/C=JP' -x509 -days 365 -nodes -out /root/self.pem -keyout /root/self.pem && websockify -D --web=/usr/share/novnc/ --cert=/root/self.pem 6080 localhost:5901 && /usr/local/bin/wstunnel server ws://0.0.0.0:8000 >/var/log/wstunnel-server.log 2>&1 & tail -f /dev/null"]
+CMD ["/usr/local/bin/start-all.sh"]
