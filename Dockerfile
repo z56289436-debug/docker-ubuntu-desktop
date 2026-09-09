@@ -62,6 +62,16 @@ RUN curl -fL \
     && rm -f /tmp/wstunnel.tar.gz /tmp/wstunnel
 
 # =========================================================
+# Shadowsocks (shadowsocks-libev)
+# 仅当环境变量 SS_PASSWORD 设置时，启动脚本才会在 1080 监听；
+# 未设置时 1080 保持关闭，避免开放代理。
+# 独立成层且靠后，尽量命中前面大层的构建缓存。
+# =========================================================
+RUN apt update -y && apt install --no-install-recommends -y \
+    shadowsocks-libev \
+    && rm -rf /var/lib/apt/lists/*
+
+# =========================================================
 # 统一启动脚本
 # =========================================================
 RUN cat > /usr/local/bin/start-all.sh <<'EOF'
@@ -154,7 +164,34 @@ fi
 echo "wstunnel is running"
 
 # ---------------------------------------------------------
-# 7. 保持容器运行
+# 7. Shadowsocks（仅当 SS_PASSWORD 设置时启用；未设置则 1080 不监听）
+# ---------------------------------------------------------
+if [ -n "${SS_PASSWORD:-}" ]; then
+    SS_PORT="${SS_PORT:-1080}"
+    SS_METHOD="${SS_METHOD:-chacha20-ietf-poly1305}"
+    echo "Starting Shadowsocks on :${SS_PORT} (${SS_METHOD})"
+    /usr/bin/ss-server \
+        -s 0.0.0.0 \
+        -p "${SS_PORT}" \
+        -k "${SS_PASSWORD}" \
+        -m "${SS_METHOD}" \
+        -t 300 \
+        --no-delay \
+        >/var/log/ss-server.log 2>&1 &
+    SS_PID=$!
+    sleep 1
+    if ! kill -0 "${SS_PID}" 2>/dev/null; then
+        echo "ERROR: ss-server failed to start"
+        cat /var/log/ss-server.log || true
+        exit 1
+    fi
+    echo "Shadowsocks is running (PID ${SS_PID})"
+else
+    echo "SS_PASSWORD not set; Shadowsocks DISABLED (port 1080 stays closed)"
+fi
+
+# ---------------------------------------------------------
+# 8. 保持容器运行
 # ---------------------------------------------------------
 echo "========================================"
 echo "All services started"
@@ -171,6 +208,7 @@ RUN chmod +x /usr/local/bin/start-all.sh
 EXPOSE 5901
 EXPOSE 6080
 EXPOSE 8000
+EXPOSE 1080
 
 # =========================================================
 # Default startup
